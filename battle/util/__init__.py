@@ -1,6 +1,6 @@
 from .types import *
 from .map import *
-from .util import *
+from battle.util import *
 
 __all__ = [
     "Tiles",
@@ -8,5 +8,5 @@ __all__ = [
     "createEmpty",
     "createN",
     "create1v1",
-    "GameHistoryJSONEncoder",
+    # "GameHistoryJSONEncoder",
 ]
