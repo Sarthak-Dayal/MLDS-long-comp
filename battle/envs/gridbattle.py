@@ -14,7 +14,7 @@ import math
 from scipy import signal
 
 
-class GridBattle:
+class GridBattle(gym.Env):
     """
     """
 
@@ -325,7 +325,7 @@ class GridBattle:
         info = self._get_info()
         return (n_obs, info) if return_info else n_obs
 
-    def step(self, n_action: Sequence[NDArray]) -> Tuple[Sequence[NDArray], NDArray, bool, dict]:
+    def step(self, n_action: Sequence[NDArray]) -> Tuple[Sequence[NDArray], NDArray, bool, bool, dict]:
         """
         The rewards are given on the basis of cells meaning each agent gets a grid of cell rewards. The reward is
         calculated as enemy cells - friendly cells in the vision area of each cell.
@@ -333,7 +333,7 @@ class GridBattle:
         :param n_action: A list of actions for each agent to take, where each agent's actions is in its action space.
         :type n_action: Sequence[NDArray]
         :return: A list of observations, a list of reward maps, whether the environment is done or not, and information.
-        :rtype: Tuple[Sequence[NDArray], Sequence[NDArray], bool, dict]
+        :rtype: Tuple[Sequence[NDArray], Sequence[NDArray], bool, bool, dict]
         """
         assert check_argument_types(), \
             'action must be an NDArray'
@@ -350,8 +350,8 @@ class GridBattle:
 
         # update timestep and whether we are done or not
         self.timestep += 1
-        done = self.timestep >= self.max_timestep  # end if time has run out
-
+        truncated = self.timestep >= self.max_timestep  # end if time has run out
+        terminated = False
         ### MAP UPDATE PHASE ###
         if self.map_time_length > 1:  # if we have a map that changes over time
             relative_timestep: int = self.timestep % self.map_time_length
@@ -398,8 +398,8 @@ class GridBattle:
         reward_maps: NDArray = post_step_value_maps - pre_step_value_maps
         # reward_maps: NDArray = post_step_value_maps
 
-        if not done:
-            done = sum(np.unique(self.grid) >= Tiles.AGENT) < 2  # end if there is only one kind of agent territory left
+        if not truncated:
+            terminated = sum(np.unique(self.grid) >= Tiles.AGENT) < 2  # end if there is only one kind of agent territory left
 
         n_obs = self._get_obs()
         info = self._get_info()
@@ -409,12 +409,12 @@ class GridBattle:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     self.window = None
-                    done = True
+                    truncated = True
 
                 if event.type == pygame.KEYUP:
                     pass
 
-        return n_obs, reward_maps, done, info
+        return n_obs, reward_maps, terminated, truncated, info
 
     def render(self, mode: str = 'human', fps: int = metadata['render_fps']) -> Union[NDArray, None]:
         if self.window is None and mode == 'human':
@@ -507,7 +507,8 @@ class GridBattle:
 
             normalized_actions: Sequence[Union[NDArray, None]] = self._normalize_actions(n_action)
 
-            n_obs, n_reward, done, info = self.step(n_action)
+            n_obs, n_reward, terminated, truncated, info = self.step(n_action)
+            done = terminated or truncated
 
             attacked_grid = np.concatenate(  # add tiles.empty and tiles.wall dimensions as having attacked nothing
                 (np.zeros((*self.shape, Tiles.AGENT), dtype=np.ushort), self._get_attacked_grid(normalized_actions)),
