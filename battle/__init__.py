@@ -7,6 +7,7 @@ __all__ = [
     "Agent",
     "RandomAgent",
     "AgentFunction",
+    "RLBattleAgent",
     "GridBattleHuman",
     "ParallelGridBattleRL",
     "GridBattle",
