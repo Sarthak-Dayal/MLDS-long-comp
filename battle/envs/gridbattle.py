@@ -13,7 +13,6 @@ import gym
 import math
 from scipy import signal
 
-
 class GridBattle(gym.Env):
     """
     """
@@ -142,14 +141,14 @@ class GridBattle(gym.Env):
         self.window = None
         self.clock = None
 
-    def _get_obs_space(self, agent: Agent, seed: int = 0) -> gym.Space:
+    def get_obs_space(self, agent: Agent, seed: int = 0) -> gym.Space:
         if not agent.obs_onehot:  # if we are using enum encoding
             return spaces.MultiDiscrete(np.full(self.shape, self.n_tile_types), seed=seed)
 
         # if we are using one-hot encoding
         return spaces.MultiBinary((self.n_tile_types, *self.shape), seed=seed)
 
-    def _get_action_space(self, agent: Agent, seed: int = 0) -> gym.Space:
+    def get_action_space(self, agent: Agent, seed: int = 0) -> gym.Space:
         if not agent.attack_map:  # if we are using raw integers
             return spaces.MultiDiscrete(np.full(self.shape, self.n_attack_tiles), seed=seed)
 
@@ -221,10 +220,10 @@ class GridBattle(gym.Env):
 
     def _set_env_spaces(self, seed: Union[int, None]) -> None:
         # the shape of each agent's action
-        self.action_spaces: Sequence[gym.Space] = tuple(self._get_action_space(agent, seed) for agent in self.agents)
+        self.action_spaces: Sequence[gym.Space] = tuple(self.get_action_space(agent, seed) for agent in self.agents)
 
         # the shape of each agent's observation
-        self.observation_spaces: Sequence[gym.Space] = tuple(self._get_obs_space(agent, seed) for agent in self.agents)
+        self.observation_spaces: Sequence[gym.Space] = tuple(self.get_obs_space(agent, seed) for agent in self.agents)
 
     def _normalize_actions(self, n_action: Sequence[NDArray]) -> Sequence[Union[NDArray, None]]:
         # given agent actions n_action, convert it from a sequence of agent actions in varying formats
@@ -413,8 +412,8 @@ class GridBattle(gym.Env):
 
                 if event.type == pygame.KEYUP:
                     pass
-
-        return n_obs, reward_maps, terminated, truncated, info
+        scalar_reward = reward(self.grid)
+        return n_obs, scalar_reward, terminated, truncated, info
 
     def render(self, mode: str = 'human', fps: int = metadata['render_fps']) -> Union[NDArray, None]:
         if self.window is None and mode == 'human':

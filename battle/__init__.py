@@ -15,4 +15,9 @@ __all__ = [
     "createEmpty",
     "createN",
     "create1v1",
+    "pad",
+    "get_action",
+    "reward",
+    "ReplayBuffer",
+    "Transition"
 ]
