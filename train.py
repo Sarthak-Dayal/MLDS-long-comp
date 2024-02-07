@@ -166,9 +166,13 @@ poetry run pip install "stable_baselines3==2.0.0a1"
             if global_step % args.train_frequency == 0:
                 obs, actions, rewards, next_obs, dones = rb.sample(args.batch_size)
                 with torch.no_grad():
-                    target_max, _ = agent1.run_target_net(next_obs).max(dim=1)
-                    td_target = rewards.flatten() + args.gamma * target_max * (1 - dones.flatten())
-                old_val = agent1.run_q_net(obs).gather(1, actions).squeeze()
+                    # target_max, _ = agent1.run_target_net(next_obs).max(dim=1)
+                    target_max = agent1.run_target_net(next_obs)
+                    td_target = rewards.flatten() + args.gamma * target_max * (~dones.flatten())
+                obs_agent1, obs_agent2 = torch.chunk(obs, chunks=2, dim=1)
+                obs_agent1 = obs_agent1.squeeze(1)
+                obs_agent2 = obs_agent2.squeeze(1)
+                old_val = agent1.run_q_net(obs_agent1).gather(1, actions).squeeze()
                 loss = F.mse_loss(td_target, old_val)
 
                 if global_step % 100 == 0:

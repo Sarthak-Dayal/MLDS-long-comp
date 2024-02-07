@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from torch import Tensor
 
 from battle.agents import Agent
-
+from battle.util import pad
 
 class RLBattleAgent(Agent):
 
@@ -19,11 +19,13 @@ class RLBattleAgent(Agent):
         self.target.to(device)
 
     def run_target_net(self, obs: Tensor):
-        q_values = self.target(obs)
+        target_obs = torch.tensor(np.array([pad(arr) for arr in obs]), dtype=torch.float32).to(self.device)
+        q_values = self.target(target_obs)
         return torch.argmax(q_values).cpu().numpy() + 1
 
     def run_q_net(self, obs: Tensor):
-        q_values = self.q_network(obs)
+        q_obs = torch.tensor(np.array([pad(arr) for arr in obs]), dtype=torch.float32).to(self.device)
+        q_values = self.q_network(q_obs)
         return torch.argmax(q_values).cpu().numpy() + 1
 
     def policy(self, obs: NDArray[int], action_space: gym.Space, obs_space: gym.Space) -> NDArray:

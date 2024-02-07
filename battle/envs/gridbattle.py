@@ -376,8 +376,9 @@ class GridBattle(gym.Env):
         attacked_tiles = attacked_tiles.reshape((-1, self.n_agents))  # unflatten the attacked tiles to be an array of attack distributions
         total_attacked_tiles = total_attacked_grid[converted_mask]  # get the total number of times each tile was attacked
         attacked_tiles = attacked_tiles / np.expand_dims(total_attacked_tiles, -1)  # normalize the attacked tiles
-        converted_tiles = np.apply_along_axis(lambda distribution: np.random.choice(a=self.n_agents, p=distribution) + Tiles.AGENT, axis=1, arr=attacked_tiles)
-
+        
+        converted_tiles = np.apply_along_axis(lambda distribution: np.random.choice(a=self.n_agents, p=distribution) + Tiles.AGENT, axis=1, arr=attacked_tiles) if attacked_tiles.shape[1] is not 0 else np.array()
+        # import pdb; pdb.set_trace()
         new_grid = np.copy(self.grid)
         new_grid[converted_mask] = converted_tiles.astype(np.ubyte)
 
