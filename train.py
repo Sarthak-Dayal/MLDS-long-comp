@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 
 import gymnasium as gym
+import numpy
 import numpy as np
 import torch
 import torch.nn as nn
@@ -13,7 +14,7 @@ import torch.optim as optim
 import tyro
 from torch.utils.tensorboard import SummaryWriter
 
-from battle import GridBattle, RandomAgent, RLBattleAgent
+from battle import GridBattle, RandomAgent, RLBattleAgent, pad
 from battle.util import sample_map_1_sliding, get_action, ReplayBuffer, Transition
 
 @dataclass
@@ -133,19 +134,24 @@ poetry run pip install "stable_baselines3==2.0.0a1"
     start_time = time.time()
 
     # TRY NOT TO MODIFY: start the game
-    obs, _ = env.reset(seed=args.seed)
+    obs, info = env.reset(seed=args.seed)
+    action_space = obs[0].shape
+    obs[0] = torch.from_numpy(pad(obs[0])).float()
+    obs[1] = torch.from_numpy(pad(obs[1])).float()
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
         epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
         if random.random() < epsilon:
             action = env.get_action_space(agent1).sample()
         else:
-            action = get_action(obs[0], agent1)
+            action = get_action(obs[0], agent1, action_space)
 
         random_action = agent2.policy(obs, env.action_spaces[1], env.observation_spaces[1])
 
         # TRY NOT TO MODIFY: execute the game and log data.
         next_obs, reward, termination, truncation, info = env.step([action, random_action])
+        next_obs[0] = torch.from_numpy(pad(next_obs[0])).float()
+        next_obs[1] = torch.from_numpy(pad(next_obs[1])).float()
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         if info and "episode" in info:
@@ -154,10 +160,12 @@ poetry run pip install "stable_baselines3==2.0.0a1"
             writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
 
         # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
-        rb.add(Transition(obs, next_obs, reward, action, termination or truncation))
+        rb.add(Transition(obs[0], action, float(reward), next_obs[0], termination or truncation))
 
         if termination or truncation:
-            obs = env.reset()
+            obs, info = env.reset()
+            obs[0] = torch.from_numpy(pad(obs[0])).float()
+            obs[1] = torch.from_numpy(pad(obs[1])).float()
         else:
             obs = next_obs
 
@@ -168,11 +176,11 @@ poetry run pip install "stable_baselines3==2.0.0a1"
                 with torch.no_grad():
                     # target_max, _ = agent1.run_target_net(next_obs).max(dim=1)
                     target_max = agent1.run_target_net(next_obs)
-                    td_target = rewards.flatten() + args.gamma * target_max * (~dones.flatten())
-                obs_agent1, obs_agent2 = torch.chunk(obs, chunks=2, dim=1)
-                obs_agent1 = obs_agent1.squeeze(1)
-                obs_agent2 = obs_agent2.squeeze(1)
-                old_val = agent1.run_q_net(obs_agent1).gather(1, actions).squeeze()
+                    td_target = rewards.flatten() + args.gamma * target_max * (1 - dones.int().flatten())
+                # obs_agent1, obs_agent2 = torch.chunk(obs, chunks=2, dim=1)
+                # obs_agent1 = obs_agent1.squeeze(1)
+                # obs_agent2 = obs_agent2.squeeze(1)
+                old_val = agent1.q_network(obs).gather(1, actions.long()).squeeze()
                 loss = F.mse_loss(td_target, old_val)
 
                 if global_step % 100 == 0:

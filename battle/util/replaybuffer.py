@@ -3,10 +3,13 @@ from typing import Sequence
 import numpy as np
 from gymnasium.spaces import MultiDiscrete
 import torch
+from numpy.typing import NDArray
+from torch import Tensor
+
 
 class Transition:
 
-    def __init__(self, obs: MultiDiscrete, action: MultiDiscrete, reward: float, next_obs: MultiDiscrete, done: bool):
+    def __init__(self, obs: Tensor, action: NDArray, reward: float, next_obs: Tensor, done: bool):
         self.obs = obs
         self.action = action
         self.reward = reward
@@ -39,8 +42,8 @@ class ReplayBuffer:
             next_obs.append(transition.next_obs)
             dones.append(transition.done)
 
-        return (torch.tensor(obs, dtype=torch.float32).to(self.device),
+        return (torch.stack(obs).to(self.device),
                 torch.tensor(actions, dtype=torch.float32).to(self.device),
                 torch.tensor(rewards, dtype=torch.float32).to(self.device),
-                torch.tensor(next_obs, dtype=torch.float32).to(self.device),
+                torch.stack(next_obs).to(self.device),
                 torch.tensor(dones, dtype=torch.bool).to(self.device))
