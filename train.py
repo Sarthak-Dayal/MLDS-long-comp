@@ -177,7 +177,15 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         filtered_grid_batch = grid_batch[indices_in_coords]
         filtered_next_obs_batch = next_obs_batch[indices_in_new_coords]
 
-        # TRY NOT TO MODIFY: record rewards for plotting purposes
+        print(f"reward: {reward}")
+        writer.add_scalar("charts/step_reward", reward, global_step)
+        print(f"self_agents: {(obs[0] == 2).sum()}")
+        writer.add_scalar("charts/self_agents", (obs[0] == 2).sum(), global_step)
+        print(f"enemy_agents: {(obs[0] > 2).sum()}")
+        writer.add_scalar("charts/enemy_agents", (obs[0] > 2).sum(), global_step)
+
+
+        # TRY NOT TO MODIFY: record rewards for plotting purposes        
         if info and "episode" in info:
             print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
             writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
