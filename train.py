@@ -15,7 +15,7 @@ import tyro
 from torch.utils.tensorboard import SummaryWriter
 
 from battle import GridBattle, RandomAgent, RLBattleAgent, pad
-from battle.util import sample_map_1_sliding, get_action, ReplayBuffer, Transition
+from battle.util import sample_map_1_sliding, get_action, ReplayBuffer, Transition, obs_to_batch_grids, action_to_batch_actions
 
 @dataclass
 class Args:
@@ -67,7 +67,7 @@ class Args:
     """the ending epsilon for exploration"""
     exploration_fraction: float = 0.5
     """the fraction of `total-timesteps` it takes from start-e to go end-e"""
-    learning_starts: int = 10000
+    learning_starts: int = 100
     """timestep to start learning"""
     train_frequency: int = 10
     """the frequency of training"""
@@ -141,10 +141,14 @@ poetry run pip install "stable_baselines3==2.0.0a1"
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
         epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
+
+        grid_batch, coords = obs_to_batch_grids(obs[0])
         if random.random() < epsilon:
             action = env.get_action_space(agent1).sample()
         else:
             action = get_action(obs[0], agent1, action_space)
+
+        action_batch = action_to_batch_actions(action, coords)
 
         random_action = agent2.policy(obs, env.action_spaces[1], env.observation_spaces[1])
 
@@ -153,6 +157,26 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         next_obs[0] = torch.from_numpy(pad(next_obs[0])).float()
         next_obs[1] = torch.from_numpy(pad(next_obs[1])).float()
 
+        next_obs_batch, new_coords = obs_to_batch_grids(next_obs[0])
+
+        # Convert coords and new_coords to sets
+        coords_set = set(map(tuple, coords))
+        new_coords_set = set(map(tuple, new_coords))
+
+        # Find the common coordinates
+        common_coords = coords_set & new_coords_set
+
+        # Convert common_coords back to a list of tuples
+        common_coords = list(map(list, common_coords))
+
+        # Find the indices of the common coordinates in coords and new_coords
+        indices_in_coords = [coords.index(tuple(coord)) for coord in common_coords]
+        indices_in_new_coords = [new_coords.index(tuple(coord)) for coord in common_coords]
+
+        # Use these indices to filter grid_batch and next_obs_batch
+        filtered_grid_batch = grid_batch[indices_in_coords]
+        filtered_next_obs_batch = next_obs_batch[indices_in_new_coords]
+
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         if info and "episode" in info:
             print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
@@ -160,7 +184,7 @@ poetry run pip install "stable_baselines3==2.0.0a1"
             writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
 
         # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
-        rb.add(Transition(obs[0], action, float(reward), next_obs[0], termination or truncation))
+        rb.add_batch(Transition.build_batch(filtered_grid_batch, action_batch, float(reward), filtered_next_obs_batch, termination or truncation))
 
         if termination or truncation:
             obs, info = env.reset()
@@ -172,15 +196,15 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         # ALGO LOGIC: training.
         if global_step > args.learning_starts:
             if global_step % args.train_frequency == 0:
-                obs, actions, rewards, next_obs, dones = rb.sample(args.batch_size)
+                obs_batch, actions, rewards, next_obs_batch, dones = rb.sample(args.batch_size)
                 with torch.no_grad():
                     # target_max, _ = agent1.run_target_net(next_obs).max(dim=1)
-                    target_max = agent1.run_target_net(next_obs)
+                    target_max = agent1.run_target_net(next_obs_batch)
                     td_target = rewards.flatten() + args.gamma * target_max * (1 - dones.int().flatten())
                 # obs_agent1, obs_agent2 = torch.chunk(obs, chunks=2, dim=1)
                 # obs_agent1 = obs_agent1.squeeze(1)
                 # obs_agent2 = obs_agent2.squeeze(1)
-                old_val = agent1.q_network(obs).gather(1, actions.long()).squeeze()
+                old_val = agent1.q_network(obs_batch).gather(1, actions.long()[None, :]).squeeze()
                 loss = F.mse_loss(td_target, old_val)
 
                 if global_step % 100 == 0:

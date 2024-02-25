@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, List
 
 import numpy as np
 from gymnasium.spaces import MultiDiscrete
@@ -9,12 +9,19 @@ from torch import Tensor
 
 class Transition:
 
-    def __init__(self, obs: Tensor, action: NDArray, reward: float, next_obs: Tensor, done: bool):
+    def __init__(self, obs: Tensor, action: int, reward: float, next_obs: Tensor, done: bool):
         self.obs = obs
         self.action = action
         self.reward = reward
         self.next_obs = next_obs
         self.done = done
+
+    def build_batch(obs: Tensor, action: NDArray, reward: float, next_obs: Tensor, done: bool):
+        transitions = []
+        for i in range(obs.shape[0]):
+            transitions.append(Transition(obs[i], action[i], reward, next_obs[i], done))
+
+        return transitions
 
 
 class ReplayBuffer:
@@ -24,12 +31,16 @@ class ReplayBuffer:
         self.next_idx = 0
         self.device = device
 
-    def add(self, transition):
+    def add(self, transition: Transition):
         if len(self.buffer) < self.size:
             self.buffer.append(transition)
         else:
             self.buffer[self.next_idx] = transition
         self.next_idx = (self.next_idx + 1) % self.size
+
+    def add_batch(self, transitions: List[Transition]):
+        for transition in transitions:
+            self.add(transition)
 
     def sample(self, batch_size):
         indices = np.random.randint(len(self.buffer), size=batch_size)

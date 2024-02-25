@@ -19,5 +19,7 @@ __all__ = [
     "get_action",
     "reward",
     "ReplayBuffer",
-    "Transition"
+    "Transition",
+    "obs_to_batch_grids",
+    "action_to_batch_actions"
 ]
